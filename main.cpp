@@ -67,10 +67,11 @@ int main(int argc, char* argv[]) {
     std::vector<ImprovementPoint> trajectory;
 
 #ifdef VERBOSE
-    std::cout << "Running CLARKE&WRIGHT to generate an initial solution.\n";
-    timer.reset();
+std::cout << "Running SWEEP to generate an initial solution.\n";
+timer.reset();
 #endif
-    cobra::clarke_and_wright(instance, best_solution, params.get_cw_lambda(), params.get_cw_neighbors());
+
+cobra::sweep(instance, best_solution, 0.5);  // En vez de clarke_and_wright
 #ifdef VERBOSE
     std::cout << "Done in " << timer.elapsed_time<std::chrono::seconds>() << " seconds.\n";
     std::cout << "Initial solution: obj = " << best_solution.get_cost() << ", n. of routes = " << best_solution.get_routes_num() << ".\n\n";

@@ -92,6 +92,88 @@ namespace cobra {
         assert(solution.is_feasible());
     }
 
+    inline void sweep(const Instance &instance, Solution &solution, const double radius_threshold = 0.5) {
+        solution.reset();
+        
+        struct PolarCoord {
+            int customer_id;
+            double rho;
+            double phi;
+            int demand;
+        };
+        
+        std::vector<PolarCoord> polar_coords;
+        polar_coords.reserve(instance.get_customers_num());
+        
+        const auto depot = instance.get_depot();
+        const auto depot_x = instance.get_x_coordinate(depot);
+        const auto depot_y = instance.get_y_coordinate(depot);
+        
+        double max_rho = 0.0;
+        
+        for (auto i = instance.get_customers_begin(); i < instance.get_customers_end(); i++) {
+            const auto dx = instance.get_x_coordinate(i) - depot_x;
+            const auto dy = instance.get_y_coordinate(i) - depot_y;
+            
+            PolarCoord pc;
+            pc.customer_id = i;
+            pc.rho = std::sqrt(dx * dx + dy * dy);
+            pc.phi = std::atan2(dy, dx);
+            pc.demand = instance.get_demand(i);
+            
+            polar_coords.push_back(pc);
+            max_rho = std::max(max_rho, pc.rho);
+        }
+        
+        std::sort(polar_coords.begin(), polar_coords.end(), 
+                [](const PolarCoord& a, const PolarCoord& b) {
+                    return a.phi < b.phi;
+                });
+        
+        const double threshold_distance = radius_threshold * max_rho;
+        
+        std::vector<PolarCoord> inner, outer;
+        for (const auto& pc : polar_coords) {
+            if (pc.rho < threshold_distance) {
+                inner.push_back(pc);
+            } else {
+                outer.push_back(pc);
+            }
+        }
+        
+        auto assign_group = [&](const std::vector<PolarCoord>& group) {
+            if (group.empty()) return;
+            
+            // Crear primera ruta con primer cliente
+            solution.build_one_customer_route</*record_action=*/false>(group[0].customer_id);
+            int current_route_idx = solution.get_route_index(group[0].customer_id);
+            int current_load = group[0].demand;
+            
+            // Procesar resto de clientes
+            for (size_t idx = 1; idx < group.size(); idx++) {
+                const auto& pc = group[idx];
+                
+                if (current_load + pc.demand > instance.get_vehicle_capacity()) {
+                    // No cabe, crear nueva ruta
+                    solution.build_one_customer_route</*record_action=*/false>(pc.customer_id);
+                    current_route_idx = solution.get_route_index(pc.customer_id);
+                    current_load = pc.demand;
+                } else {
+                    // Cabe, fusionar con ruta actual
+                    solution.build_one_customer_route</*record_action=*/false>(pc.customer_id);
+                    const int temp_route_idx = solution.get_route_index(pc.customer_id);
+                    solution.append_route(current_route_idx, temp_route_idx);
+                    current_load += pc.demand;
+                }
+            }
+        };
+        
+        assign_group(inner);
+        assign_group(outer);
+        
+        assert(solution.is_feasible());
+    }
+
 }  // namespace cobra
 
 #endif
