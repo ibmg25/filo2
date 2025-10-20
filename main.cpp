@@ -194,7 +194,11 @@ int main(int argc, char* argv[]) {
 
 
 #ifdef VERBOSE
-    std::cout << "Running COREOPT for " << coreopt_iterations << " iterations.\n";
+    if (params.get_time_limit() > 0) {
+        std::cout << "Running COREOPT for " << params.get_time_limit() << " seconds.\n";
+    } else {
+        std::cout << "Running COREOPT for " << coreopt_iterations << " iterations.\n";
+    }
 
     auto welford_rac_before_shaking = cobra::Welford();
     auto welford_rac_after_shaking = cobra::Welford();
@@ -229,199 +233,238 @@ int main(int argc, char* argv[]) {
     // Cost of the working solution, from which neighbor is obtained after shaking and local search.
     double reference_solution_cost = neighbor.get_cost();
 
-    for (auto iter = 0; iter < coreopt_iterations; iter++) {
+    const auto time_limit = params.get_time_limit();
+    const bool use_time_limit = (time_limit > 0);
 
+    auto iter = 0;
+    auto coreopt_start_time = std::chrono::steady_clock::now();
+
+    // Loop principal modificado
+    while (true) {
+        
+        // Verificar condición de parada
+        if (use_time_limit) {
+            auto current_time = std::chrono::steady_clock::now();
+            auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(
+                current_time - coreopt_start_time
+            ).count();
+            
+            if (elapsed >= time_limit) {
+    #ifdef VERBOSE
+                std::cout << "\nTime limit reached: " << elapsed << " seconds\n";
+                std::cout << "Completed " << iter << " iterations\n";
+    #endif
+                break;
+            }
+        } else {
+            if (iter >= coreopt_iterations) {
+                break;
+            }
+        }
+
+        // AQUÍ VA TODO EL CONTENIDO ORIGINAL DEL LOOP
+        // (Desde "neighbor.apply_undo_list1(neighbor);" hasta el final del loop original)
+        
         neighbor.apply_undo_list1(neighbor);
         neighbor.clear_do_list1();
         neighbor.clear_undo_list1();
         neighbor.clear_svc();
 
-#ifdef VERBOSE
-        if (global_timer.elapsed_time<std::chrono::minutes>() >= elapsed_minutes + 5) {
-            printer.notify("Optimizing for " + std::to_string(global_timer.elapsed_time<std::chrono::minutes>()) + " minutes.");
-            elapsed_minutes += 5;
-        }
-
-        cobra::Timer rr_timer;
-#endif
-
-        const auto walk_seed = rr.apply(neighbor, omega);
-
-
-#ifdef VERBOSE
-        const auto rr_time = rr_timer.elapsed_time<std::chrono::microseconds>();
-        welford_rr.update(rr_time);
-#endif
-
-#ifdef GUI
-        const auto shaken_solution_cost = neighbor.get_cost();
-#endif
-
-        ruined_customers.clear();
-        for (auto i = neighbor.get_svc_begin(); i != neighbor.get_svc_end(); i = neighbor.get_svc_next(i)) {
-            ruined_customers.emplace_back(i);
-        }
-
-#ifdef VERBOSE
-        welford_rac_after_shaking.update(static_cast<double>(neighbor.get_svc_size()));
-        welford_shaken_solutions.update(neighbor.get_cost());
-
-        cobra::Timer ls_timer;
-#endif
-
-        local_search.sequential_apply(neighbor);
-
-#ifdef VERBOSE
-        const auto ls_time = ls_timer.elapsed_time<std::chrono::microseconds>();
-        welford_ls.update(ls_time);
-#endif
-
-#ifdef GUI
-
-        const auto local_optimum_cost = neighbor.get_cost();
-#endif
-
-        average_number_of_vertices_accessed.update(static_cast<double>(neighbor.get_svc_size()));
-
-        auto max_non_improving_iterations = static_cast<int>(std::ceil(delta * static_cast<double>(coreopt_iterations) *
-                                                                       static_cast<double>(average_number_of_vertices_accessed.get_mean()) /
-                                                                       static_cast<double>(instance.get_vertices_num())));
-
-#ifdef GUI
-        if (iter % 1000 == 0) {
-            renderer.draw(best_solution, neighbor.get_svc(), move_generators);
-        }
-#endif
-
-#ifdef VERBOSE
-        welford_rac_before_shaking.update(static_cast<double>(neighbor.get_svc_size()));
-        welford_local_optima.update(neighbor.get_cost());
-#endif
-
-        bool improved_best_solution;
-
-        if (neighbor.get_cost() < best_solution.get_cost()) {
-
-            // best_solution = solution;
-
-            improved_best_solution = true;
-
-            neighbor.apply_do_list2(best_solution);
-            neighbor.apply_do_list1(best_solution);  // latest changes
-            neighbor.clear_do_list2();
-
-            assert(best_solution == neighbor);
-
-
-            gamma_vertices.clear();
-            for (auto i = neighbor.get_svc_begin(); i != neighbor.get_svc_end(); i = neighbor.get_svc_next(i)) {
-                gamma[i] = gamma_base;
-                gamma_counter[i] = 0;
-                gamma_vertices.emplace_back(i);
+    #ifdef VERBOSE
+            if (global_timer.elapsed_time<std::chrono::minutes>() >= elapsed_minutes + 5) {
+                printer.notify("Optimizing for " + std::to_string(global_timer.elapsed_time<std::chrono::minutes>()) + " minutes.");
+                elapsed_minutes += 5;
             }
-            move_generators.set_active_percentage(gamma, gamma_vertices);
 
-#ifdef VERBOSE
-            welford_local_optima.reset();
-            welford_local_optima.update(neighbor.get_cost());
-            welford_shaken_solutions.reset();
+            cobra::Timer rr_timer;
+    #endif
+
+            const auto walk_seed = rr.apply(neighbor, omega);
+
+
+    #ifdef VERBOSE
+            const auto rr_time = rr_timer.elapsed_time<std::chrono::microseconds>();
+            welford_rr.update(rr_time);
+    #endif
+
+    #ifdef GUI
+            const auto shaken_solution_cost = neighbor.get_cost();
+    #endif
+
+            ruined_customers.clear();
+            for (auto i = neighbor.get_svc_begin(); i != neighbor.get_svc_end(); i = neighbor.get_svc_next(i)) {
+                ruined_customers.emplace_back(i);
+            }
+
+    #ifdef VERBOSE
+            welford_rac_after_shaking.update(static_cast<double>(neighbor.get_svc_size()));
             welford_shaken_solutions.update(neighbor.get_cost());
-#endif
 
-        } else {
+            cobra::Timer ls_timer;
+    #endif
 
-            improved_best_solution = false;
+            local_search.sequential_apply(neighbor);
 
-            for (auto i = neighbor.get_svc_begin(); i != neighbor.get_svc_end(); i = neighbor.get_svc_next(i)) {
-                gamma_counter[i]++;
-                if (gamma_counter[i] >= max_non_improving_iterations) {
-                    gamma[i] = std::min(gamma[i] * 2.0, 1.0);
+    #ifdef VERBOSE
+            const auto ls_time = ls_timer.elapsed_time<std::chrono::microseconds>();
+            welford_ls.update(ls_time);
+    #endif
+
+    #ifdef GUI
+
+            const auto local_optimum_cost = neighbor.get_cost();
+    #endif
+
+            average_number_of_vertices_accessed.update(static_cast<double>(neighbor.get_svc_size()));
+
+            auto max_non_improving_iterations = static_cast<int>(std::ceil(delta * static_cast<double>(coreopt_iterations) *
+                                                                        static_cast<double>(average_number_of_vertices_accessed.get_mean()) /
+                                                                        static_cast<double>(instance.get_vertices_num())));
+
+    #ifdef GUI
+            if (iter % 1000 == 0) {
+                renderer.draw(best_solution, neighbor.get_svc(), move_generators);
+            }
+    #endif
+
+    #ifdef VERBOSE
+            welford_rac_before_shaking.update(static_cast<double>(neighbor.get_svc_size()));
+            welford_local_optima.update(neighbor.get_cost());
+    #endif
+
+            bool improved_best_solution;
+
+            if (neighbor.get_cost() < best_solution.get_cost()) {
+
+                // best_solution = solution;
+
+                improved_best_solution = true;
+
+                neighbor.apply_do_list2(best_solution);
+                neighbor.apply_do_list1(best_solution);  // latest changes
+                neighbor.clear_do_list2();
+
+                assert(best_solution == neighbor);
+
+
+                gamma_vertices.clear();
+                for (auto i = neighbor.get_svc_begin(); i != neighbor.get_svc_end(); i = neighbor.get_svc_next(i)) {
+                    gamma[i] = gamma_base;
                     gamma_counter[i] = 0;
-                    gamma_vertices.clear();
                     gamma_vertices.emplace_back(i);
-                    move_generators.set_active_percentage(gamma, gamma_vertices);
                 }
-            }
-        }
+                move_generators.set_active_percentage(gamma, gamma_vertices);
 
-        const auto seed_shake_value = omega[walk_seed];
+    #ifdef VERBOSE
+                welford_local_optima.reset();
+                welford_local_optima.update(neighbor.get_cost());
+                welford_shaken_solutions.reset();
+                welford_shaken_solutions.update(neighbor.get_cost());
+    #endif
 
-        if (neighbor.get_cost() > shaking_ub_factor + reference_solution_cost) {
-            for (auto i : ruined_customers) {
-                if (omega[i] > seed_shake_value - 1) {
-                    omega[i]--;
+            } else {
+
+                improved_best_solution = false;
+
+                for (auto i = neighbor.get_svc_begin(); i != neighbor.get_svc_end(); i = neighbor.get_svc_next(i)) {
+                    gamma_counter[i]++;
+                    if (gamma_counter[i] >= max_non_improving_iterations) {
+                        gamma[i] = std::min(gamma[i] * 2.0, 1.0);
+                        gamma_counter[i] = 0;
+                        gamma_vertices.clear();
+                        gamma_vertices.emplace_back(i);
+                        move_generators.set_active_percentage(gamma, gamma_vertices);
+                    }
                 }
             }
-        } else if (neighbor.get_cost() >= reference_solution_cost && neighbor.get_cost() < reference_solution_cost + shaking_lb_factor) {
-            for (auto i : ruined_customers) {
-                if (omega[i] < seed_shake_value + 1) {
-                    omega[i]++;
-                }
-            }
-        } else {
-            for (auto i : ruined_customers) {
-                if (random_choice(rand_engine)) {
+
+            const auto seed_shake_value = omega[walk_seed];
+
+            if (neighbor.get_cost() > shaking_ub_factor + reference_solution_cost) {
+                for (auto i : ruined_customers) {
                     if (omega[i] > seed_shake_value - 1) {
                         omega[i]--;
                     }
-                } else {
+                }
+            } else if (neighbor.get_cost() >= reference_solution_cost && neighbor.get_cost() < reference_solution_cost + shaking_lb_factor) {
+                for (auto i : ruined_customers) {
                     if (omega[i] < seed_shake_value + 1) {
                         omega[i]++;
                     }
                 }
+            } else {
+                for (auto i : ruined_customers) {
+                    if (random_choice(rand_engine)) {
+                        if (omega[i] > seed_shake_value - 1) {
+                            omega[i]--;
+                        }
+                    } else {
+                        if (omega[i] < seed_shake_value + 1) {
+                            omega[i]++;
+                        }
+                    }
+                }
             }
-        }
 
-        if (sa.accept(reference_solution_cost, neighbor)) {
+            if (sa.accept(reference_solution_cost, neighbor)) {
 
-            if (!improved_best_solution) {
-                neighbor.append_do_list1_to_do_list2();
+                if (!improved_best_solution) {
+                    neighbor.append_do_list1_to_do_list2();
+                }
+
+                neighbor.clear_do_list1();
+                neighbor.clear_undo_list1();
+
+                reference_solution_cost = neighbor.get_cost();
+
+                const auto updated_mean_solution_arc_cost = neighbor.get_cost() / (static_cast<double>(instance.get_customers_num()) +
+                                                                                2.0 * static_cast<double>(neighbor.get_routes_num()));
+                shaking_lb_factor = updated_mean_solution_arc_cost * intensification_lb;
+                shaking_ub_factor = updated_mean_solution_arc_cost * intensification_ub;
             }
 
-            neighbor.clear_do_list1();
-            neighbor.clear_undo_list1();
+            sa.decrease_temperature();
 
-            reference_solution_cost = neighbor.get_cost();
+    #ifdef GUI
+            renderer.add_trajectory_point(shaken_solution_cost, local_optimum_cost, reference_solution_cost, best_solution.get_cost());
+    #endif
 
-            const auto updated_mean_solution_arc_cost = neighbor.get_cost() / (static_cast<double>(instance.get_customers_num()) +
-                                                                               2.0 * static_cast<double>(neighbor.get_routes_num()));
-            shaking_lb_factor = updated_mean_solution_arc_cost * intensification_lb;
-            shaking_ub_factor = updated_mean_solution_arc_cost * intensification_ub;
-        }
+    #ifdef VERBOSE
+            if (timer.elapsed_time<std::chrono::seconds>() > 1) {
+                timer.reset();
 
-        sa.decrease_temperature();
+                const auto progress = use_time_limit ? 
+                    (100.0 * std::chrono::duration_cast<std::chrono::seconds>(
+                        std::chrono::steady_clock::now() - coreopt_start_time).count() / time_limit) :
+                    (100.0 * (iter + 1.0) / coreopt_iterations);
+                
+                const auto elapsed_seconds = coreopt_timer.elapsed_time<std::chrono::seconds>();
+                const auto iter_per_second = static_cast<double>(iter + 1) / (static_cast<double>(elapsed_seconds) + 0.01);
+                
+                const auto estimated_rem_time = use_time_limit ?
+                    (time_limit - std::chrono::duration_cast<std::chrono::seconds>(
+                        std::chrono::steady_clock::now() - coreopt_start_time).count()) :
+                    (static_cast<double>(coreopt_iterations - iter) / iter_per_second);
 
-#ifdef GUI
-        renderer.add_trajectory_point(shaken_solution_cost, local_optimum_cost, reference_solution_cost, best_solution.get_cost());
-#endif
+                auto gamma_mean = 0.0;
+                for (auto i = instance.get_vertices_begin(); i < instance.get_vertices_end(); i++) {
+                    gamma_mean += gamma[i];
+                }
+                gamma_mean = (gamma_mean / static_cast<double>(instance.get_vertices_num()));
 
-#ifdef VERBOSE
-        if (timer.elapsed_time<std::chrono::seconds>() > 1) {
-            timer.reset();
+                auto omega_mean = 0.0;
+                for (auto i = instance.get_customers_begin(); i < instance.get_customers_end(); i++) {
+                    omega_mean += omega[i];
+                }
+                omega_mean /= static_cast<double>(instance.get_customers_num());
 
-            const auto progress = 100.0 * (iter + 1.0) / coreopt_iterations;
-            const auto elapsed_seconds = coreopt_timer.elapsed_time<std::chrono::seconds>();
-            const auto iter_per_second = static_cast<double>(iter + 1) / (static_cast<double>(elapsed_seconds) + 0.01);
-            const auto remaining_iter = coreopt_iterations - iter;
-            const auto estimated_rem_time = static_cast<double>(remaining_iter) / iter_per_second;
 
-            auto gamma_mean = 0.0;
-            for (auto i = instance.get_vertices_begin(); i < instance.get_vertices_end(); i++) {
-                gamma_mean += gamma[i];
+                printer.print(progress, iter + 1, best_solution.get_cost(), best_solution.get_routes_num(), iter_per_second, estimated_rem_time,
+                            welford_rr.get_mean(), welford_ls.get_mean(), gamma_mean, omega_mean, sa.get_temperature());
             }
-            gamma_mean = (gamma_mean / static_cast<double>(instance.get_vertices_num()));
-
-            auto omega_mean = 0.0;
-            for (auto i = instance.get_customers_begin(); i < instance.get_customers_end(); i++) {
-                omega_mean += omega[i];
-            }
-            omega_mean /= static_cast<double>(instance.get_customers_num());
-
-
-            printer.print(progress, iter + 1, best_solution.get_cost(), best_solution.get_routes_num(), iter_per_second, estimated_rem_time,
-                          welford_rr.get_mean(), welford_ls.get_mean(), gamma_mean, omega_mean, sa.get_temperature());
-        }
-#endif
+    #endif
+        
+        iter++;  // IMPORTANTE: Incrementar el contador al final
     }
 
     int global_time_elapsed = global_timer.elapsed_time<std::chrono::seconds>();

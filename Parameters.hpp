@@ -22,6 +22,7 @@
 #define DEFAULT_SEED (0)
 #define DEFAULT_SA_INIT_FACTOR (0.1)
 #define DEFAULT_SA_FINAL_FACTOR (0.01)
+#define DEFAULT_TIME_LIMIT (-1) 
 
 // Tokens.
 #define TOKEN_OUTPATH ("--outpath")
@@ -39,6 +40,7 @@
 #define TOKEN_HELP ("--help")
 #define TOKEN_SA_INIT_FACTOR ("--sa-initial-factor")
 #define TOKEN_SA_FINAL_FACTOR ("--sa-final-factor")
+#define TOKEN_TIME_LIMIT ("--time-limit")
 
 
 class Parameters {
@@ -119,6 +121,9 @@ public:
     inline int get_neighbors_num() const {
         return neighbors_num;
     }
+    inline int get_time_limit() const {
+        return time_limit;
+    }
 
     void set(const std::string& key, const std::string& value) {
 
@@ -153,6 +158,8 @@ public:
             sa_final_factor = std::stof(value);
         } else if (key == TOKEN_NEIGHBORS_NUM) {
             neighbors_num = std::stoi(value);
+        } else if (key == TOKEN_TIME_LIMIT) {
+            time_limit = std::stoi(value);
         } else {
             std::cout << "Error: unknown argument '" << key << "'. Try --help for more information.\n";
             exit(EXIT_SUCCESS);
@@ -177,6 +184,7 @@ private:
     double sa_initial_factor = DEFAULT_SA_INIT_FACTOR;
     double sa_final_factor = DEFAULT_SA_FINAL_FACTOR;
     int neighbors_num = DEFAULT_NEIGHBORS_NUM;
+    int time_limit = DEFAULT_TIME_LIMIT;
 };
 
 
