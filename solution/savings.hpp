@@ -92,7 +92,7 @@ namespace cobra {
         assert(solution.is_feasible());
     }
 
-    inline void sweep(const Instance &instance, Solution &solution, const double radius_threshold = 0.5) {
+    inline void sweep(const Instance &instance, Solution &solution, const double radius_threshold = 0.5, const unsigned seed = 0) {
         solution.reset();
         
         struct PolarCoord {
@@ -140,18 +140,32 @@ namespace cobra {
                 outer.push_back(pc);
             }
         }
+
+        // Preparar RNG: si seed == 0, usar random_device (no determinista), si seed != 0, determinista
+        unsigned use_seed = seed;
+        if (use_seed == 0) {
+            std::random_device rd;
+            use_seed = rd();
+        }
+        std::mt19937 rng(use_seed);
         
         auto assign_group = [&](const std::vector<PolarCoord>& group) {
             if (group.empty()) return;
             
-            // Crear primera ruta con primer cliente
-            solution.build_one_customer_route</*record_action=*/false>(group[0].customer_id);
-            int current_route_idx = solution.get_route_index(group[0].customer_id);
-            int current_load = group[0].demand;
+            // elegir un cliente de inicio aleatorio dentro del grupo
+            std::uniform_int_distribution<size_t> dist_idx(0, group.size() - 1);
+            const size_t start_idx = dist_idx(rng);
             
-            // Procesar resto de clientes
-            for (size_t idx = 1; idx < group.size(); idx++) {
-                const auto& pc = group[idx];
+            // crear la primera ruta con el cliente seleccionado
+            const auto &first_pc = group[start_idx];
+            solution.build_one_customer_route</*record_action=*/false>(first_pc.customer_id);
+            int current_route_idx = solution.get_route_index(first_pc.customer_id);
+            int current_load = first_pc.demand;
+            
+            // recorrer el resto circularmente
+            for (size_t offset = 1; offset < group.size(); offset++) {
+                const size_t idx = (start_idx + offset) % group.size();
+                const auto &pc = group[idx];
                 
                 if (current_load + pc.demand > instance.get_vehicle_capacity()) {
                     // No cabe, crear nueva ruta
