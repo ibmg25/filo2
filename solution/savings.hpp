@@ -92,7 +92,11 @@ namespace cobra {
         assert(solution.is_feasible());
     }
 
-    inline void sweep(const Instance &instance, Solution &solution, const double radius_threshold = 0.5, const unsigned seed = 0) {
+    inline void sweep(const Instance &instance, Solution &solution,
+                    const double radius_threshold = 0.5,
+                    const double radius_min = 0.5,
+                    const double radius_max = 0.5,
+                    const unsigned seed = 0) {
         solution.reset();
         
         struct PolarCoord {
@@ -129,9 +133,31 @@ namespace cobra {
                 [](const PolarCoord& a, const PolarCoord& b) {
                     return a.phi < b.phi;
                 });
-        
-        const double threshold_distance = radius_threshold * max_rho;
-        
+
+        // Preparar RNG: si seed == 0, usar random_device (no determinista), si seed != 0, determinista
+        unsigned use_seed = seed;
+        if (use_seed == 0) {
+            std::random_device rd;
+            use_seed = rd();
+        }
+        std::mt19937 rng(use_seed);
+
+        // Determinar factor radial (radius_factor en [0,1])
+        double radius_factor = radius_threshold; // default: usa el radius_threshold simple
+        // Si el usuario pasó un rango válido y distinto, tomar aleatorio en [radius_min, radius_max]
+        if (radius_min != radius_max) {
+            double rmin = std::min(std::max(radius_min, 0.0), 1.0);
+            double rmax = std::min(std::max(radius_max, 0.0), 1.0);
+            if (rmin > rmax) std::swap(rmin, rmax);
+            std::uniform_real_distribution<double> dist_r(rmin, rmax);
+            radius_factor = dist_r(rng);
+        } else {
+            // si no hay rango, usar el radius_threshold (clamped)
+            radius_factor = std::min(std::max(radius_threshold, 0.0), 1.0);
+        }
+
+        const double threshold_distance = radius_factor * max_rho;
+
         std::vector<PolarCoord> inner, outer;
         for (const auto& pc : polar_coords) {
             if (pc.rho < threshold_distance) {
@@ -141,14 +167,6 @@ namespace cobra {
             }
         }
 
-        // Preparar RNG: si seed == 0, usar random_device (no determinista), si seed != 0, determinista
-        unsigned use_seed = seed;
-        if (use_seed == 0) {
-            std::random_device rd;
-            use_seed = rd();
-        }
-        std::mt19937 rng(use_seed);
-        
         auto assign_group = [&](const std::vector<PolarCoord>& group) {
             if (group.empty()) return;
             
@@ -181,7 +199,7 @@ namespace cobra {
                 }
             }
         };
-        
+
         assign_group(inner);
         assign_group(outer);
         

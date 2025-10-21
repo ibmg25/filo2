@@ -71,7 +71,7 @@ std::cout << "Running SWEEP to generate an initial solution.\n";
 timer.reset();
 #endif
 
-cobra::sweep(instance, best_solution, 0.5);  // En vez de clarke_and_wright
+cobra::sweep(instance, best_solution, 0.5, 0.25, 0.75);  // En vez de clarke_and_wright
 #ifdef VERBOSE
     std::cout << "Done in " << timer.elapsed_time<std::chrono::seconds>() << " seconds.\n";
     std::cout << "Initial solution: obj = " << best_solution.get_cost() << ", n. of routes = " << best_solution.get_routes_num() << ".\n\n";
