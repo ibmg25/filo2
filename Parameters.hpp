@@ -22,7 +22,8 @@
 #define DEFAULT_SEED (0)
 #define DEFAULT_SA_INIT_FACTOR (0.1)
 #define DEFAULT_SA_FINAL_FACTOR (0.01)
-#define DEFAULT_TIME_LIMIT (-1) 
+#define DEFAULT_TIME_LIMIT (-1)
+#define DEFAULT_SAVE_TRAJECTORY (false)
 
 // Tokens.
 #define TOKEN_OUTPATH ("--outpath")
@@ -41,6 +42,7 @@
 #define TOKEN_SA_INIT_FACTOR ("--sa-initial-factor")
 #define TOKEN_SA_FINAL_FACTOR ("--sa-final-factor")
 #define TOKEN_TIME_LIMIT ("--time-limit")
+#define TOKEN_SAVE_TRAJECTORY ("--save-trajectory")
 
 
 class Parameters {
@@ -58,6 +60,12 @@ public:
         for (auto n = 2; n < argc; n += 2) {
 
             auto token = std::string(argv[n]);
+
+            if (token == TOKEN_SAVE_TRAJECTORY) {
+                save_trajectory = true;
+                n -= 1;
+                continue;
+            }
 
             if (n + 1 >= argc) {
                 std::cout << "Missing value for '" << token << "'.\n\n";
@@ -124,6 +132,9 @@ public:
     inline int get_time_limit() const {
         return time_limit;
     }
+    inline bool get_save_trajectory() const {
+        return save_trajectory;
+    }
 
     void set(const std::string& key, const std::string& value) {
 
@@ -185,6 +196,7 @@ private:
     double sa_final_factor = DEFAULT_SA_FINAL_FACTOR;
     int neighbors_num = DEFAULT_NEIGHBORS_NUM;
     int time_limit = DEFAULT_TIME_LIMIT;
+    bool save_trajectory = DEFAULT_SAVE_TRAJECTORY;
 };
 
 

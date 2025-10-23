@@ -22,6 +22,13 @@ auto get_basename(const std::string& pathname) -> std::string {
     return {std::find_if(pathname.rbegin(), pathname.rend(), [](char c) { return c == '/'; }).base(), pathname.end()};
 }
 
+// Estructura para guardar los puntos de mejora
+struct ImprovementPoint {
+    double time_seconds;
+    double cost;
+    int routes;
+};
+
 
 // Few notes:
 // - Inputs are never checked when the solver is compiled in release mode. There are just a lot of assertions checked in debug mode.
@@ -57,6 +64,8 @@ int main(int argc, char* argv[]) {
 
     auto best_solution = cobra::Solution(instance, std::min(instance.get_vertices_num(), params.get_solution_cache_size()));
 
+    std::vector<ImprovementPoint> trajectory;
+
 #ifdef VERBOSE
     std::cout << "Running CLARKE&WRIGHT to generate an initial solution.\n";
     timer.reset();
@@ -66,6 +75,13 @@ int main(int argc, char* argv[]) {
     std::cout << "Done in " << timer.elapsed_time<std::chrono::seconds>() << " seconds.\n";
     std::cout << "Initial solution: obj = " << best_solution.get_cost() << ", n. of routes = " << best_solution.get_routes_num() << ".\n\n";
 #endif
+
+    // Registrar la solución inicial
+    trajectory.push_back({
+        global_timer.elapsed_time<std::chrono::milliseconds>() / 1000.0,
+        best_solution.get_cost(),
+        best_solution.get_routes_num()
+    });
 
     auto k = params.get_sparsification_rule_neighbors();
 
@@ -121,6 +137,12 @@ int main(int argc, char* argv[]) {
         std::cout << "Final solution: obj = " << best_solution.get_cost() << ", n. routes = " << best_solution.get_routes_num() << "\n";
         std::cout << "Done in " << timer.elapsed_time<std::chrono::seconds>() << " seconds.\n\n";
 #endif
+        // Registrar mejora después de routemin
+        trajectory.push_back({
+            global_timer.elapsed_time<std::chrono::milliseconds>() / 1000.0,
+            best_solution.get_cost(),
+            best_solution.get_routes_num()
+        });
     }
 
 
@@ -239,7 +261,7 @@ int main(int argc, char* argv[]) {
     auto iter = 0;
     auto coreopt_start_time = std::chrono::steady_clock::now();
 
-    // Loop principal modificado
+    // Loop principal
     while (true) {
         
         // Verificar condición de parada
@@ -261,9 +283,6 @@ int main(int argc, char* argv[]) {
                 break;
             }
         }
-
-        // AQUÍ VA TODO EL CONTENIDO ORIGINAL DEL LOOP
-        // (Desde "neighbor.apply_undo_list1(neighbor);" hasta el final del loop original)
         
         neighbor.apply_undo_list1(neighbor);
         neighbor.clear_do_list1();
@@ -341,10 +360,22 @@ int main(int argc, char* argv[]) {
                 improved_best_solution = true;
 
                 neighbor.apply_do_list2(best_solution);
-                neighbor.apply_do_list1(best_solution);  // latest changes
+                neighbor.apply_do_list1(best_solution);
                 neighbor.clear_do_list2();
 
                 assert(best_solution == neighbor);
+
+                double current_time = global_timer.elapsed_time<std::chrono::milliseconds>() / 1000.0;
+                trajectory.push_back({
+                    current_time,
+                    best_solution.get_cost(),
+                    best_solution.get_routes_num()
+                });
+
+                // Descomentar para ver New Bests en consola
+                // std::cout << "NEW BEST at " << std::fixed << std::setprecision(3) << current_time 
+                //           << "s: cost = " << std::setprecision(2) << best_solution.get_cost() 
+                //           << ", routes = " << best_solution.get_routes_num() << std::endl;
 
 
                 gamma_vertices.clear();
@@ -489,6 +520,21 @@ int main(int argc, char* argv[]) {
     cobra::Solution::store_to_file(
         instance, best_solution,
         params.get_outpath() + get_basename(params.get_instance_path()) + "_seed-" + std::to_string(params.get_seed()) + ".vrp.sol");
+    
+    if (params.get_save_trajectory()) {
+        const auto trajectory_file = params.get_outpath() + get_basename(params.get_instance_path()) + 
+                                     "_seed-" + std::to_string(params.get_seed()) + ".trajectory";
+        
+        auto traj_stream = std::ofstream(trajectory_file);
+        traj_stream << std::setprecision(10);
+        traj_stream << "# time(s)\tcost\troutes\n";
+        
+        for (const auto& point : trajectory) {
+            traj_stream << point.time_seconds << "\t" << point.cost << "\t" << point.routes << "\n";
+        }
+        
+        traj_stream.close();
+    }
 
 #ifdef VERBOSE
     std::cout << "\n";
