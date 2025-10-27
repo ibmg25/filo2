@@ -29,7 +29,6 @@ struct ImprovementPoint {
     int routes;
 };
 
-
 // Few notes:
 // - Inputs are never checked when the solver is compiled in release mode. There are just a lot of assertions checked in debug mode.
 int main(int argc, char* argv[]) {
@@ -46,6 +45,10 @@ int main(int argc, char* argv[]) {
 #endif
 
     const auto params = Parameters(argc, argv);
+    
+    const auto global_time_limit = params.get_time_limit();
+    const bool use_global_time_limit = (global_time_limit > 0);
+    auto global_start_time = std::chrono::steady_clock::now();
 
 #ifdef VERBOSE
     std::cout << "Pre-processing the instance.\n";
@@ -71,7 +74,29 @@ std::cout << "Running SWEEP to generate an initial solution.\n";
 timer.reset();
 #endif
 
-cobra::sweep(instance, best_solution, 0.5, 0.25, 0.75);  // En vez de clarke_and_wright
+if (use_global_time_limit) {
+    auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(
+        std::chrono::steady_clock::now() - global_start_time).count();
+    if (elapsed >= global_time_limit) {
+#ifdef VERBOSE
+        std::cout << "Time limit reached before construction phase\n";
+#endif
+        return 0;
+    }
+}
+
+    cobra::sweep(instance, best_solution, 0.5, 0.25, 0.75);
+
+if (use_global_time_limit) {
+    auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(
+        std::chrono::steady_clock::now() - global_start_time).count();
+    if (elapsed >= global_time_limit) {
+#ifdef VERBOSE
+        std::cout << "Time limit reached after construction phase\n";
+#endif
+        return 0;
+    }
+}
 #ifdef VERBOSE
     std::cout << "Done in " << timer.elapsed_time<std::chrono::seconds>() << " seconds.\n";
     std::cout << "Initial solution: obj = " << best_solution.get_cost() << ", n. of routes = " << best_solution.get_routes_num() << ".\n\n";
@@ -131,6 +156,17 @@ cobra::sweep(instance, best_solution, 0.5, 0.25, 0.75);  // En vez de clarke_and
                   << ".\n";
         timer.reset();
 #endif
+
+        if (use_global_time_limit) {
+            auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(
+                std::chrono::steady_clock::now() - global_start_time).count();
+            if (elapsed >= global_time_limit) {
+#ifdef VERBOSE
+                std::cout << "Time limit reached before routemin\n";
+#endif
+                return 0;
+            }
+        }
 
         best_solution = routemin(instance, best_solution, rand_engine, move_generators, kmin, routemin_iterations, tolerance);
 
@@ -260,7 +296,8 @@ cobra::sweep(instance, best_solution, 0.5, 0.25, 0.75);  // En vez de clarke_and
     const bool use_time_limit = (time_limit > 0);
 
     auto iter = 0;
-    auto coreopt_start_time = std::chrono::steady_clock::now();
+    // Reusar global_start_time en lugar de crear coreopt_start_time nuevo
+    auto coreopt_start_time = global_start_time;
 
     // Loop principal
     while (true) {
@@ -366,6 +403,7 @@ cobra::sweep(instance, best_solution, 0.5, 0.25, 0.75);  // En vez de clarke_and
 
                 assert(best_solution == neighbor);
 
+                // REGISTRAR LA MEJORA CON TIMESTAMP
                 double current_time = global_timer.elapsed_time<std::chrono::milliseconds>() / 1000.0;
                 trajectory.push_back({
                     current_time,
@@ -373,11 +411,10 @@ cobra::sweep(instance, best_solution, 0.5, 0.25, 0.75);  // En vez de clarke_and
                     best_solution.get_routes_num()
                 });
 
-                // Descomentar para ver New Bests en consola
-                // std::cout << "NEW BEST at " << std::fixed << std::setprecision(3) << current_time 
-                //           << "s: cost = " << std::setprecision(2) << best_solution.get_cost() 
-                //           << ", routes = " << best_solution.get_routes_num() << std::endl;
-
+                // Imprimir la mejora inmediatamente
+                std::cout << "NEW BEST at " << std::fixed << std::setprecision(3) << current_time 
+                          << "s: cost = " << std::setprecision(2) << best_solution.get_cost() 
+                          << ", routes = " << best_solution.get_routes_num() << std::endl;
 
                 gamma_vertices.clear();
                 for (auto i = neighbor.get_svc_begin(); i != neighbor.get_svc_end(); i = neighbor.get_svc_next(i)) {
@@ -496,7 +533,7 @@ cobra::sweep(instance, best_solution, 0.5, 0.25, 0.75);  // En vez de clarke_and
             }
     #endif
         
-        iter++;  // IMPORTANTE: Incrementar el contador al final
+        iter++;
     }
 
     int global_time_elapsed = global_timer.elapsed_time<std::chrono::seconds>();
@@ -507,7 +544,7 @@ cobra::sweep(instance, best_solution, 0.5, 0.25, 0.75);  // En vez de clarke_and
     std::cout << "obj = " << best_solution.get_cost() << ", n. routes = " << best_solution.get_routes_num() << "\n";
 
     std::cout << "\n";
-    std::cout << "Run completed in " << global_time_elapsed << " seconds ";
+    std::cout << "Run completed in " << global_time_elapsed << " seconds\n";
 #endif
 
     const auto outfile = params.get_outpath() + get_basename(params.get_instance_path()) + "_seed-" + std::to_string(params.get_seed()) +
@@ -518,6 +555,7 @@ cobra::sweep(instance, best_solution, 0.5, 0.25, 0.75);  // En vez de clarke_and
     auto out_stream = std::ofstream(outfile);
     out_stream << std::setprecision(10);
     out_stream << best_solution.get_cost() << "\t" << global_time_elapsed << "\n";
+    
     cobra::Solution::store_to_file(
         instance, best_solution,
         params.get_outpath() + get_basename(params.get_instance_path()) + "_seed-" + std::to_string(params.get_seed()) + ".vrp.sol");
@@ -535,6 +573,11 @@ cobra::sweep(instance, best_solution, 0.5, 0.25, 0.75);  // En vez de clarke_and
         }
         
         traj_stream.close();
+
+#ifdef VERBOSE
+        std::cout << "\nTrajectory saved to " << trajectory_file << "\n";
+        std::cout << "Total improvements found: " << trajectory.size() << "\n";
+#endif
     }
 
 #ifdef VERBOSE
@@ -544,6 +587,11 @@ cobra::sweep(instance, best_solution, 0.5, 0.25, 0.75);  // En vez de clarke_and
     std::cout << " - "
               << params.get_outpath() + get_basename(params.get_instance_path()) + "_seed-" + std::to_string(params.get_seed()) + ".vrp.sol"
               << "\n";
+    if (params.get_save_trajectory()) {
+        std::cout << " - "
+                  << params.get_outpath() + get_basename(params.get_instance_path()) + "_seed-" + std::to_string(params.get_seed()) + ".trajectory"
+                  << "\n";
+    }
 #endif
 
     return EXIT_SUCCESS;
