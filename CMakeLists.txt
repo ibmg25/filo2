@@ -3,8 +3,29 @@ project(filo2)
 
 set(CMAKE_CXX_STANDARD 17)
 
+get_filename_component(CONCORDE_DIR "${CMAKE_SOURCE_DIR}/../concorde" ABSOLUTE)
+message(STATUS "Looking for Concorde in: ${CONCORDE_DIR}")
+
+# Definimos TODAS las librerías necesarias.
+# Concorde separa sus módulos en archivos .a distintos.
+set(CONCORDE_LIBS
+    "${CONCORDE_DIR}/concorde.a"
+    "${CONCORDE_DIR}/EDGEGEN/edgegen.a"
+    "${CONCORDE_DIR}/LINKERN/linkern.a"
+    "${CONCORDE_DIR}/KDTREE/kdtree.a"
+    "${CONCORDE_DIR}/UTIL/util.a"
+    "${CONCORDE_DIR}/FMATCH/fmatch.a"
+)
+
+# Verificamos que existan (al menos la principal y edgegen que falló)
+if(EXISTS "${CONCORDE_DIR}/concorde.a" AND EXISTS "${CONCORDE_DIR}/EDGEGEN/edgegen.a")
+    message(STATUS "Found Concorde Libraries.")
+else()
+    message(FATAL_ERROR "Missing Concorde libraries.\n Expected: ${CONCORDE_DIR}/EDGEGEN/edgegen.a\n Make sure you ran 'make' inside the concorde folder correctly.")
+endif()
+
 set(WARNING_FLAGS "-Wall -Wextra -Wpedantic -Wuninitialized")
-set(OPT_FLAGS "-O3 -march=native -flto=auto")
+set(OPT_FLAGS "-O2 -fno-vectorize")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${WARNING_FLAGS}")
 set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -fsanitize=address -fsanitize=undefined -fsanitize-address-use-after-scope -fno-omit-frame-pointer -g")
 set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} ${OPT_FLAGS}")
@@ -86,6 +107,7 @@ add_executable(filo2
     opt/RuinAndRecreate.hpp
     opt/SimulatedAnnealing.hpp
 
+    solution/construction.hpp
     solution/savings.hpp
     solution/Solution.hpp
     solution/Solution.cpp
@@ -95,4 +117,10 @@ add_executable(filo2
     Renderer.hpp
 )
 
-target_link_libraries(filo2 PUBLIC ${LIBRARIES})
+target_include_directories(filo2 PRIVATE
+    ${CONCORDE_DIR}
+    ${CONCORDE_DIR}/INCLUDE
+    ${CONCORDE_DIR}/LINKERN
+)
+
+target_link_libraries(filo2 PUBLIC ${LIBRARIES} ${CONCORDE_LIBS} m)
