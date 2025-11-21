@@ -36,7 +36,6 @@ extern "C" {
     #include "machdefs.h"
     #include "util.h"
     #include "kdtree.h"
-    // #include "edgegen.h"  <-- ELIMINADO PARA EVITAR ERRORES DE LINKEO
     #include "macrorus.h"
     #include "linkern.h"
 }
@@ -99,9 +98,9 @@ namespace cobra {
         int ecount = 0;
         int *elist = (int *) NULL;
 
-        // --- PASO 1: Tour Inicial (Boruvka) ---
+        // Tour Inicial (Boruvka)
         CCkdtree localkt;
-        // Nota: Boruvka internamente no usa aristas explícitas, usa geometría
+        // Boruvka internamente no usa aristas explícitas, usa geometría
         if (CCkdtree_build(&localkt, n_tsp, &dat, NULL, &rstate) == 0) {
              int tempcount;
              int *templist;
@@ -113,10 +112,7 @@ namespace cobra {
              CCkdtree_free(&localkt);
         }
 
-        // --- PASO 2: Generar Aristas (Grafo Completo / Clique) ---
-        // [SOLUCIÓN DEFINITIVA]
-        // En lugar de depender de edgegen, generamos todas las conexiones posibles.
-        // Para rutas de camiones (ej: 20-50 nodos), esto es trivial y muy rápido.
+        // Generar Aristas
         if (success) {
             ecount = (n_tsp * (n_tsp - 1)) / 2;
             elist = (int *) CC_SAFE_MALLOC(2 * ecount, int);
@@ -131,10 +127,9 @@ namespace cobra {
             }
         }
 
-        // --- PASO 3: Lin-Kernighan ---
+        // Lin-Kernighan
         if (success) {
             int run_silently = 1;
-            // Linkern ahora recibe un grafo completo, imposible que falle por falta de aristas
             if (CClinkern_tour(n_tsp, &dat, ecount, elist, 10000000, n_tsp, incycle, outcycle, &val, 
                             run_silently, -1.0, -1.0, NULL, KICK_TYPE, &rstate) != 0) {
                 std::cerr << "Linkern failed internal error." << std::endl;
@@ -144,7 +139,7 @@ namespace cobra {
             for(int i=0; i<n_tsp; ++i) outcycle[i] = (i + 1) % n_tsp;
         }
 
-        // --- PASO 4: Reordenar ---
+        // Reordenar
         if (success) {
             std::vector<int> optimized_segment;
             optimized_segment.reserve(n);
@@ -179,7 +174,6 @@ namespace cobra {
         return val;
     }
 
-    // ... (El resto de funciones: pack_in_trucks, compute_routes_and_build, sweep SÍGUEN IGUAL)
     inline void pack_in_trucks(const Instance &instance, 
                                const std::vector<PolarCoord> &toPack, 
                                std::vector<int> &assignment) {

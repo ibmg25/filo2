@@ -76,41 +76,41 @@ int main(int argc, char* argv[]) {
     timer.reset();
 #endif
 
-std::vector<double> thresholds_to_try;
-    int n_thresholds = 100; 
-    for (int i = 50; i < 51; i++) {
-        thresholds_to_try.push_back(static_cast<double>(i) / n_thresholds);
-    }
+    std::vector<double> thresholds_to_try = {0.3, 0.4, 0.5, 0.6, 0.7};
 
-    // 2. Bucle de iteración (El corazón del algoritmo Anytime)
     int iterations_count = 0;
     for (const double th : thresholds_to_try) {
         
-        // A. Verificación de tiempo (Crucial para tu tesis)
+        // Verificación de tiempo
         if (use_global_time_limit) {
             auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(
                 std::chrono::steady_clock::now() - global_start_time).count();
             if (elapsed >= global_time_limit) {
 #ifdef VERBOSE
-                std::cout << "Time limit reached during construction phase (sweep loop).\n";
+                std::cout << "Time limit reached during construction phase.\n";
 #endif
                 break; 
             }
         }
 
-        // B. Crear una solución vacía para este intento
+        // Crear una solución vacía para este intento
         auto candidate_solution = cobra::Solution(instance, std::min(instance.get_vertices_num(), params.get_solution_cache_size()));
         
-        // C. Llamar a tu nuevo SWEEP con Concorde
-        // Nota: Ya no pasamos rand_engine ni moves, porque Concorde optimiza internamente.
+        // SWEEP con Concorde
         cobra::sweep(instance, candidate_solution, th); 
 
-        // D. Guardar si es la mejor encontrada hasta ahora
+        // Guardar si es la mejor encontrada hasta ahora
         double current_cost = candidate_solution.get_cost();
         
         if (current_cost < best_construction_cost) {
             best_construction_cost = current_cost;
-            best_solution = candidate_solution; // Copia profunda de la mejor solución
+            best_solution = candidate_solution;
+
+            trajectory.push_back({
+                global_timer.elapsed_time<std::chrono::milliseconds>() / 1000.0,
+                best_construction_cost,
+                best_solution.get_routes_num()
+            });
             
             // Opcional: Imprimir mejoras en consola
             #ifdef VERBOSE
