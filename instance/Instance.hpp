@@ -1,6 +1,7 @@
 #ifndef _FILO2_INSTANCE_HPP_
 #define _FILO2_INSTANCE_HPP_
 
+#include <iostream>
 #include <cassert>
 #include <cmath>
 #include <optional>
@@ -96,6 +97,42 @@ namespace cobra {
         inline const std::vector<int>& get_neighbors_of(int i) const {
             return neighbors[i];
         };
+
+        void transform_to_unit_demands() {
+            // Calcular demanda total original
+            int total_demand = 0;
+            for (int i = get_customers_begin(); i < get_customers_end(); ++i) {
+                total_demand += demands[i];
+            }
+            
+            // Calcular número esperado de rutas con demandas originales
+            int expected_routes = (total_demand + vehicle_capacity - 1) / vehicle_capacity;
+            
+            int n_customers = get_customers_num();
+            
+            std::cout << "\n=== TRANSFORMING TO UNIT DEMANDS ===\n";
+            std::cout << "Original configuration:\n";
+            std::cout << "  - Customers: " << n_customers << "\n";
+            std::cout << "  - Total demand: " << total_demand << "\n";
+            std::cout << "  - Vehicle capacity: " << vehicle_capacity << "\n";
+            std::cout << "  - Expected routes: " << expected_routes << "\n";
+            
+            // Transformar todas las demandas a 1
+            for (int i = get_customers_begin(); i < get_customers_end(); ++i) {
+                demands[i] = 1;
+            }
+            
+            // Ajustar capacidad para mantener número aproximado de rutas
+            // Nueva capacidad = ⌈n_customers / expected_routes⌉
+            vehicle_capacity = (n_customers + expected_routes - 1) / expected_routes;
+            
+            std::cout << "\nNew configuration:\n";
+            std::cout << "  - Customers: " << n_customers << "\n";
+            std::cout << "  - Total demand: " << n_customers << " (all demands = 1)\n";
+            std::cout << "  - Vehicle capacity: " << vehicle_capacity << "\n";
+            std::cout << "  - Expected routes: " << (n_customers + vehicle_capacity - 1) / vehicle_capacity << "\n";
+            std::cout << "====================================\n\n";
+        }
 
     private:
         Instance(const Parser::Data& data, int neighbors_num);

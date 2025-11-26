@@ -66,6 +66,11 @@ int main(int argc, char* argv[]) {
 
     const cobra::Instance instance = std::move(maybe_instance.value());
 
+    if (params.get_unit_demands()) {
+        // Esta es una excepción justificada para experimentación
+        const_cast<cobra::Instance&>(instance).transform_to_unit_demands();
+    }
+
     auto best_solution = cobra::Solution(instance, std::min(instance.get_vertices_num(), params.get_solution_cache_size()));
     double best_construction_cost = std::numeric_limits<double>::max();
 
@@ -76,7 +81,7 @@ int main(int argc, char* argv[]) {
     timer.reset();
 #endif
 
-    std::vector<double> thresholds_to_try = {0.3, 0.4, 0.5, 0.6, 0.7};
+    std::vector<double> thresholds_to_try = {0.4, 0.5, 0.6};
 
     int iterations_count = 0;
     for (const double th : thresholds_to_try) {

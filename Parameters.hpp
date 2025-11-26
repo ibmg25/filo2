@@ -24,6 +24,7 @@
 #define DEFAULT_SA_FINAL_FACTOR (0.01)
 #define DEFAULT_TIME_LIMIT (-1)
 #define DEFAULT_SAVE_TRAJECTORY (false)
+#define DEFAULT_UNIT_DEMANDS (false)
 
 // Tokens.
 #define TOKEN_OUTPATH ("--outpath")
@@ -43,6 +44,7 @@
 #define TOKEN_SA_FINAL_FACTOR ("--sa-final-factor")
 #define TOKEN_TIME_LIMIT ("--time-limit")
 #define TOKEN_SAVE_TRAJECTORY ("--save-trajectory")
+#define TOKEN_UNIT_DEMANDS ("--unit-demands")
 
 
 class Parameters {
@@ -63,6 +65,12 @@ public:
 
             if (token == TOKEN_SAVE_TRAJECTORY) {
                 save_trajectory = true;
+                n -= 1;
+                continue;
+            }
+
+            if (token == TOKEN_UNIT_DEMANDS) {
+                unit_demands = true;
                 n -= 1;
                 continue;
             }
@@ -135,6 +143,9 @@ public:
     inline bool get_save_trajectory() const {
         return save_trajectory;
     }
+    inline bool get_unit_demands() const {
+        return unit_demands;
+    }
 
     void set(const std::string& key, const std::string& value) {
 
@@ -197,6 +208,7 @@ private:
     int neighbors_num = DEFAULT_NEIGHBORS_NUM;
     int time_limit = DEFAULT_TIME_LIMIT;
     bool save_trajectory = DEFAULT_SAVE_TRAJECTORY;
+    bool unit_demands = DEFAULT_UNIT_DEMANDS;
 };
 
 
