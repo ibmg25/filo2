@@ -77,59 +77,13 @@ int main(int argc, char* argv[]) {
     std::vector<ImprovementPoint> trajectory;
 
 #ifdef VERBOSE
-    std::cout << "Running SWEEP with CONCORDE to generate an initial solution.\n";
+    std::cout << "Running C&W to generate an initial solution.\n";
     timer.reset();
 #endif
 
-    std::vector<double> thresholds_to_try = {0.4, 0.5, 0.6};
-
-    int iterations_count = 0;
-    for (const double th : thresholds_to_try) {
-        
-        // Verificación de tiempo
-        if (use_global_time_limit) {
-            auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(
-                std::chrono::steady_clock::now() - global_start_time).count();
-            if (elapsed >= global_time_limit) {
-#ifdef VERBOSE
-                std::cout << "Time limit reached during construction phase.\n";
-#endif
-                break; 
-            }
-        }
-
-        // Crear una solución vacía para este intento
-        auto candidate_solution = cobra::Solution(instance, std::min(instance.get_vertices_num(), params.get_solution_cache_size()));
-        
-        // SWEEP con Concorde
-        cobra::sweep(instance, candidate_solution, th); 
-
-        // Guardar si es la mejor encontrada hasta ahora
-        double current_cost = candidate_solution.get_cost();
-        
-        if (current_cost < best_construction_cost) {
-            best_construction_cost = current_cost;
-            best_solution = candidate_solution;
-
-            trajectory.push_back({
-                global_timer.elapsed_time<std::chrono::milliseconds>() / 1000.0,
-                best_construction_cost,
-                best_solution.get_routes_num()
-            });
-            
-            // Opcional: Imprimir mejoras en consola
-            #ifdef VERBOSE
-            std::cout << "New best init found: " << best_construction_cost << " (th=" << th << ")\n";
-            #endif
-        }
-        iterations_count++;
-    }
-
-#ifdef VERBOSE
-    std::cout << "Construction phase done. Tested " << iterations_count << " thresholds.\n";
-    std::cout << "Best Construction Cost: " << best_solution.get_cost() << "\n";
-    std::cout << "Time elapsed: " << timer.elapsed_time<std::chrono::seconds>() << " s.\n\n";
-#endif
+    cobra::clarke_and_wright(instance, best_solution, 
+                        params.get_cw_lambda(), 
+                        params.get_cw_neighbors());
 
     // Registrar la solución inicial en la trayectoria
     trajectory.push_back({
