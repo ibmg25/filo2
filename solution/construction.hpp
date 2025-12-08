@@ -180,10 +180,19 @@ namespace cobra {
         }
 
         int run_silently = 1;
-        int in_repeater = std::min(n_tsp, 5); // Parámetro de intensidad LK
+        // int in_repeater = std::min(n_tsp, 5); // Parámetro de intensidad LK
+        int in_repeater;
+        if (n_tsp <= 10) {
+            in_repeater = 1;
+        } else if (n_tsp <= 20) {
+            in_repeater = 2;
+        } else {
+            in_repeater = 3;
+        }
         
         bool lk_success = false;
-        if (CClinkern_tour(n_tsp, &dat, ecount, elist, 10000000, in_repeater, 
+        int max_kicks = std::min(5000, 500 * n_tsp);
+        if (CClinkern_tour(n_tsp, &dat, ecount, elist, max_kicks, in_repeater, 
                           incycle, outcycle, &val, run_silently, -1.0, -1.0, 
                           NULL, KICK_TYPE, &rstate) == 0) {
             lk_success = true;
