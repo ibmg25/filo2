@@ -11,19 +11,20 @@
 
 # DATASETS=("X" "B" "I")
 # SEEDS=(0 1 2 3 4 5 6 7 8 9)
-# TIME_LIMIT=600
+# TIME_LIMIT=300
 
-DATASETS=("B")  # Datasets a procesar
-SEEDS=(0 1 2)       # Seeds a ejecutar
-TIME_LIMIT=30          # Tiempo límite en segundos (5 min)
+DATASETS=("X" "B")  # Datasets a procesar
+SEEDS=(0 1 2 3 4)       # Seeds a ejecutar
+TIME_LIMIT=180          # Tiempo límite en segundos (5 min)
 
 # Nombre de esta configuración experimental (para organizar resultados)
-EXPERIMENT_NAME="Unitarias-B-30"
+EXPERIMENT_NAME="XB-180"
 
 # Parámetros adicionales del solver (opcional)
 SOLVER_PARAMS="--time-limit $TIME_LIMIT --save-trajectory"
-# Ejemplo con más parámetros:
+# Ejemplos con más parámetros:
 # SOLVER_PARAMS="--time-limit $TIME_LIMIT --save-trajectory --granular-neighbors 30"
+# SOLVER_PARAMS="--unit-demands --time-limit $TIME_LIMIT --save-trajectory"
 
 # ==================================================
 

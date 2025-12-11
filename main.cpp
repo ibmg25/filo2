@@ -86,7 +86,6 @@ int main(int argc, char* argv[]) {
     int iterations_count = 0;
     for (const double th : thresholds_to_try) {
         
-        // Verificación de tiempo
         if (use_global_time_limit) {
             auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(
                 std::chrono::steady_clock::now() - global_start_time).count();
@@ -98,13 +97,10 @@ int main(int argc, char* argv[]) {
             }
         }
 
-        // Crear una solución vacía para este intento
         auto candidate_solution = cobra::Solution(instance, std::min(instance.get_vertices_num(), params.get_solution_cache_size()));
         
-        // SWEEP con Concorde
         cobra::sweep(instance, candidate_solution, th); 
 
-        // Guardar si es la mejor encontrada hasta ahora
         double current_cost = candidate_solution.get_cost();
         
         if (current_cost < best_construction_cost) {
@@ -116,8 +112,7 @@ int main(int argc, char* argv[]) {
                 best_construction_cost,
                 best_solution.get_routes_num()
             });
-            
-            // Opcional: Imprimir mejoras en consola
+
             #ifdef VERBOSE
             std::cout << "New best init found: " << best_construction_cost << " (th=" << th << ")\n";
             #endif
@@ -325,13 +320,10 @@ int main(int argc, char* argv[]) {
     const bool use_time_limit = (time_limit > 0);
 
     auto iter = 0;
-    // Reusar global_start_time en lugar de crear coreopt_start_time nuevo
     auto coreopt_start_time = global_start_time;
 
-    // Loop principal
     while (true) {
         
-        // Verificar condición de parada
         if (use_time_limit) {
             auto current_time = std::chrono::steady_clock::now();
             auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(
@@ -440,7 +432,6 @@ int main(int argc, char* argv[]) {
                     best_solution.get_routes_num()
                 });
 
-                // Imprimir la mejora inmediatamente
                 std::cout << "NEW BEST at " << std::fixed << std::setprecision(3) << current_time 
                           << "s: cost = " << std::setprecision(2) << best_solution.get_cost() 
                           << ", routes = " << best_solution.get_routes_num() << std::endl;

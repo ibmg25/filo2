@@ -33,10 +33,6 @@ extern "C" {
 #define KICK_TYPE CC_LK_WALK_KICK
 
 namespace cobra {
-
-    // =========================================================================
-    // ESTRUCTURA DE COORDENADAS POLARES
-    // =========================================================================
     
     struct PolarCoord {
         int customer_id;
@@ -44,14 +40,10 @@ namespace cobra {
         double phi;        // Ángulo respecto al eje X
         int demand;
     };
-
-    // =========================================================================
-    // WRAPPER OPTIMIZADO DE CONCORDE LIN-KERNIGHAN
-    // =========================================================================
     
     inline double call_linkern_optimized(int n, int init, const Instance &instance, 
                                          std::vector<int> &assignment) {
-        // Casos triviales - evitar overhead de Concorde
+        // Casos triviales
         if (n < 2) return 0.0;
         
         int depot_id = instance.get_depot();
@@ -72,12 +64,8 @@ namespace cobra {
                    instance.get_cost(c2, c3) + 
                    instance.get_cost(c3, depot_id);
         }
-
-        // =====================================================================
-        // Preparar datos para Concorde (incluye depósito)
-        // =====================================================================
         
-        int n_tsp = n + 1; // n clientes + depósito
+        int n_tsp = n + 1;
         CCdatagroup dat;
         CCrandstate rstate;
         CCutil_init_datagroup(&dat);
@@ -107,10 +95,6 @@ namespace cobra {
 
         int norm = CC_EUCLIDEAN;
         CCutil_dat_setnorm(&dat, norm);
-
-        // =====================================================================
-        // Crear solución inicial con Boruvka + K-d tree
-        // =====================================================================
         
         int *incycle = (int *) CC_SAFE_MALLOC(n_tsp, int);
         int *outcycle = (int *) CC_SAFE_MALLOC(n_tsp, int);
@@ -128,11 +112,10 @@ namespace cobra {
         bool kdtree_built = false;
         bool boruvka_ok = false;
         
-        // Construir K-d tree
         if (CCkdtree_build(&localkt, n_tsp, &dat, NULL, &rstate) == 0) {
             kdtree_built = true;
             
-            // Generar vecinos cercanos para heurística inicial
+            // Generar vecinos cercanos
             int tempcount, *templist = NULL;
             if (CCkdtree_quadrant_k_nearest(&localkt, n_tsp, 2, &dat, NULL, 1, 
                                            &tempcount, &templist, 1, &rstate) == 0) {
@@ -146,18 +129,13 @@ namespace cobra {
             }
         }
 
-        // Fallback: tour trivial si Boruvka falla
         if (!boruvka_ok) {
             for (int i = 0; i < n_tsp; ++i) {
                 incycle[i] = i;
             }
         }
-
-        // =====================================================================
-        // Aplicar Lin-Kernighan para optimización
-        // =====================================================================
         
-        // Generar lista de arcos para Lin-Kernighan (grafo completo)
+        // Lin-Kernighan
         int ecount = (n_tsp * (n_tsp - 1)) / 2;
         int *elist = (int *) CC_SAFE_MALLOC(2 * ecount, int);
         
@@ -180,7 +158,7 @@ namespace cobra {
         }
 
         int run_silently = 1;
-        // int in_repeater = std::min(n_tsp, 5); // Parámetro de intensidad LK
+        // int in_repeater = std::min(n_tsp, 5);
         int in_repeater;
         if (n_tsp <= 10) {
             in_repeater = 1;
@@ -197,16 +175,12 @@ namespace cobra {
                           NULL, KICK_TYPE, &rstate) == 0) {
             lk_success = true;
         }
-
-        // =====================================================================
-        // Reordenar assignment según tour óptimo encontrado
-        // =====================================================================
         
         if (lk_success) {
             // Encontrar posición del depósito en el tour
             int depot_idx = -1;
             for (int i = 0; i < n_tsp; ++i) {
-                if (outcycle[i] == 0) { // 0 = índice del depósito
+                if (outcycle[i] == 0) {
                     depot_idx = i;
                     break;
                 }
@@ -216,27 +190,20 @@ namespace cobra {
                 std::vector<int> optimized_segment;
                 optimized_segment.reserve(n);
                 
-                // Recorrer tour desde depósito, agregando solo clientes
                 for (int i = 1; i < n_tsp; ++i) {
                     int idx = outcycle[(depot_idx + i) % n_tsp];
-                    if (idx > 0) { // Ignorar depósito (idx=0)
+                    if (idx > 0) {
                         optimized_segment.push_back(assignment[init + (idx - 1)]);
                     }
                 }
                 
-                // Actualizar assignment con orden optimizado
                 for (int i = 0; i < n; ++i) {
                     assignment[init + i] = optimized_segment[i];
                 }
             }
         } else {
-            // Si Lin-Kernighan falló, mantener orden original
             std::cerr << "WARNING: Lin-Kernighan failed, keeping original order\n";
         }
-
-        // =====================================================================
-        // Limpieza de memoria
-        // =====================================================================
         
         CC_IFFREE(incycle, int);
         CC_IFFREE(outcycle, int);
@@ -246,10 +213,6 @@ namespace cobra {
 
         return val;
     }
-
-    // =========================================================================
-    // EMPAQUETADO DE CLIENTES EN CAMIONES (ORDEN ANGULAR ESTRICTO)
-    // =========================================================================
     
     inline void pack_in_trucks(const Instance &instance, 
                                const std::vector<PolarCoord> &toPack, 
@@ -259,7 +222,6 @@ namespace cobra {
         int depot_id = instance.get_depot();
         
         for (const auto &pc : toPack) {
-            // Si el cliente no cabe en el camión actual, cerrar ruta y abrir nueva
             if (remaining_capacity < pc.demand) {
                 assignment.push_back(depot_id); // Marca de fin de ruta
                 remaining_capacity = instance.get_vehicle_capacity();
@@ -275,10 +237,6 @@ namespace cobra {
         // Cerrar última ruta
         assignment.push_back(depot_id);
     }
-
-    // =========================================================================
-    // CONSTRUCCIÓN DE RUTAS CON CONCORDE + INSERCIÓN EN SOLUCIÓN
-    // =========================================================================
     
     inline void compute_routes_and_build(const Instance &instance, 
                                          std::vector<int> &assignment, 
@@ -293,7 +251,7 @@ namespace cobra {
                 // Fin de ruta detectado
                 
                 if (n_customers_in_route > 0) {
-                    // Optimizar ruta con Concorde
+                    // Concorde
                     call_linkern_optimized(n_customers_in_route, pointer_to_init, 
                                           instance, assignment);
                     
@@ -314,23 +272,14 @@ namespace cobra {
                 n_customers_in_route = 0;
                 
             } else {
-                // Cliente en ruta actual
                 n_customers_in_route++;
             }
         }
     }
-
-    // =========================================================================
-    // ALGORITMO SWEEP PRINCIPAL
-    // =========================================================================
     
     inline void sweep(const Instance &instance, Solution &solution, double th_ratio) {
         
         solution.reset();
-        
-        // =====================================================================
-        // 1. Calcular coordenadas polares de todos los clientes
-        // =====================================================================
         
         std::vector<PolarCoord> polar_coords;
         polar_coords.reserve(instance.get_customers_num());
@@ -356,24 +305,12 @@ namespace cobra {
             max_rho = std::max(max_rho, pc.rho);
         }
         
-        // =====================================================================
-        // 2. Calcular threshold de distancia radial
-        // =====================================================================
-        
         double threshold_distance = th_ratio * max_rho;
-        
-        // =====================================================================
-        // 3. Ordenar clientes por ángulo (phi) - ORDEN ANGULAR SWEEP
-        // =====================================================================
         
         std::sort(polar_coords.begin(), polar_coords.end(), 
                   [](const PolarCoord& a, const PolarCoord& b) { 
                       return a.phi < b.phi; 
                   });
-
-        // =====================================================================
-        // 4. Particionar en INNER (cerca) y OUTER (lejos)
-        // =====================================================================
         
         std::vector<PolarCoord> inner, outer;
         
@@ -384,10 +321,6 @@ namespace cobra {
                 outer.push_back(pc);
             }
         }
-
-        // =====================================================================
-        // 5. Empaquetar clientes en camiones (orden angular estricto)
-        // =====================================================================
         
         std::vector<int> assignment;
         
@@ -398,10 +331,6 @@ namespace cobra {
         if (!outer.empty()) {
             pack_in_trucks(instance, outer, assignment);
         }
-
-        // =====================================================================
-        // 6. Optimizar cada ruta con Concorde y construir solución final
-        // =====================================================================
         
         compute_routes_and_build(instance, assignment, solution);
         
