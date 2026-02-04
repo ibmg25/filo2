@@ -25,7 +25,7 @@ else()
 endif()
 
 set(WARNING_FLAGS "-Wall -Wextra -Wpedantic -Wuninitialized")
-set(OPT_FLAGS "-O2 -fno-vectorize")
+set(OPT_FLAGS "-O2")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${WARNING_FLAGS}")
 set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -fsanitize=address -fsanitize=undefined -fsanitize-address-use-after-scope -fno-omit-frame-pointer -g")
 set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} ${OPT_FLAGS}")

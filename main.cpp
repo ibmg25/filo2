@@ -81,44 +81,68 @@ int main(int argc, char* argv[]) {
     timer.reset();
 #endif
 
-    std::vector<double> thresholds_to_try = {0.4, 0.5, 0.6};
+    struct SweepConfig {
+        double th;
+        int rotation_steps;
+    };
+    
+    std::vector<SweepConfig> configs = {
+        {0.00, 1},
+        {0.50, 1},
+        // {0.30, 1},
+        // {0.40, 1},
+        // {0.60, 1}
+    };
 
     int iterations_count = 0;
-    for (const double th : thresholds_to_try) {
+    
+    for (const auto& config : configs) {
         
-        if (use_global_time_limit) {
-            auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(
-                std::chrono::steady_clock::now() - global_start_time).count();
-            if (elapsed >= global_time_limit) {
-#ifdef VERBOSE
-                std::cout << "Time limit reached during construction phase.\n";
-#endif
-                break; 
+        int n_cust = instance.get_customers_num();
+        int step_size = (config.rotation_steps > 0) ? n_cust / config.rotation_steps : n_cust;
+
+        for (int step = 0; step < config.rotation_steps; ++step) {
+            
+            // Check de tiempo global
+            if (use_global_time_limit) {
+                auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(
+                    std::chrono::steady_clock::now() - global_start_time).count();
+                if (elapsed >= global_time_limit) {
+    #ifdef VERBOSE
+                    std::cout << "Time limit reached during construction phase.\n";
+    #endif
+                    goto end_construction;
+                }
             }
+
+            auto candidate_solution = cobra::Solution(instance, std::min(instance.get_vertices_num(), params.get_solution_cache_size()));
+            
+            int rotation_idx = step * step_size;
+            
+            // Llamada al Sweep
+            cobra::sweep(instance, candidate_solution, config.th, rotation_idx); 
+
+            double current_cost = candidate_solution.get_cost();
+            
+            if (current_cost < best_construction_cost) {
+                best_construction_cost = current_cost;
+                best_solution = candidate_solution;
+
+                trajectory.push_back({
+                    global_timer.elapsed_time<std::chrono::milliseconds>() / 1000.0,
+                    best_construction_cost,
+                    best_solution.get_routes_num()
+                });
+
+                #ifdef VERBOSE
+                std::cout << "New best init found: " << best_construction_cost 
+                          << " (th=" << config.th << ", rot=" << rotation_idx << ")\n";
+                #endif
+            }
+            iterations_count++;
         }
-
-        auto candidate_solution = cobra::Solution(instance, std::min(instance.get_vertices_num(), params.get_solution_cache_size()));
-        
-        cobra::sweep(instance, candidate_solution, th); 
-
-        double current_cost = candidate_solution.get_cost();
-        
-        if (current_cost < best_construction_cost) {
-            best_construction_cost = current_cost;
-            best_solution = candidate_solution;
-
-            trajectory.push_back({
-                global_timer.elapsed_time<std::chrono::milliseconds>() / 1000.0,
-                best_construction_cost,
-                best_solution.get_routes_num()
-            });
-
-            #ifdef VERBOSE
-            std::cout << "New best init found: " << best_construction_cost << " (th=" << th << ")\n";
-            #endif
-        }
-        iterations_count++;
     }
+    end_construction:;
 
 #ifdef VERBOSE
     std::cout << "Construction phase done. Tested " << iterations_count << " thresholds.\n";
