@@ -77,13 +77,11 @@ int main(int argc, char* argv[]) {
     std::vector<ImprovementPoint> trajectory;
 
 #ifdef VERBOSE
-    std::cout << "Running C&W to generate an initial solution.\n";
+    std::cout << "Running Sweep+Concorde Heuristic.\n";
     timer.reset();
 #endif
 
-    cobra::clarke_and_wright(instance, best_solution, 
-                        params.get_cw_lambda(), 
-                        params.get_cw_neighbors());
+    cobra::sweep_concorde_heuristic(instance, best_solution, params.get_seed());
 
     // Registrar la solución inicial en la trayectoria
     trajectory.push_back({
